@@ -2,6 +2,8 @@
 #include "pch.h"
 #include "framework.h"
 
+#pragma pack(push)   // 入栈，保存当前状态
+#pragma pack(1)      // 设置字节对齐
 class CPacket {
 public:
 	CPacket() : sHead(0), nLength(0), sCmd(0), sSum(0) {}
@@ -10,6 +12,18 @@ public:
 		nLength = pack.nLength;
 		sCmd = pack.sCmd;
 		sSum = pack.sSum;
+	}
+
+	CPacket(WORD nCmd, const BYTE* pData, size_t nSize) {  // 打包
+		sHead = 0xFEFF;
+		nLength = nSize + 4; // 4 = cmd + sum
+		sCmd = nCmd;
+		strData.resize(nSize);
+		memcpy((void*)strData.c_str(), pData, nSize);
+		sSum = 0;
+		for (size_t j = 0; j < strData.size(); j++) {
+			sSum += BYTE(strData[j]) & 0xFF;
+		}
 	}
 
 	CPacket(const BYTE* pData, size_t& nSize) {
@@ -63,13 +77,31 @@ public:
 
 	~CPacket() {}
 
+	int Size() {   // 包数据的大小
+		return nLength + 6;
+	}
+
+	const char* Data() {
+		strOut.resize(nLength + 6);
+		// strOut 本身就是一个缓冲区，我们让 pData 指向这个缓冲区，然后将包头，长度，数据，命令...逐个复制进去
+		BYTE* pData = (BYTE*)strOut.c_str();
+		*(WORD*)pData = sHead; pData += 2;
+		*(DWORD*)pData = nLength; pData += 4;
+		*(WORD*)pData = sCmd; pData += 2;
+		memcpy(pData, strData.c_str(), strData.size()); pData += strData.size();
+		*(WORD*)pData = sSum;
+		return strOut.c_str();
+	}
+
 public:
 	WORD sHead;   // 包头 固定位 0xFEFF
 	DWORD nLength;// 包长度 从控制命令开始，到和校验结束
 	WORD sCmd;    // 控制命令
 	std::string strData; // 包数据
+	std::string strOut;  // 整个包的数据
 	WORD sSum;    // 和校验
 };
+#pragma pack(pop)    // 还原状态
 
 class CServerSocket
 {
@@ -129,6 +161,11 @@ public:
 	bool Send(const char* pData, int nSize) {
 		if (m_client == -1) return false;
 		return send(m_client, pData, nSize, 0) > 0;
+	}
+
+	bool Send(CPacket& pack) {
+		if (m_client == -1) return false;
+		return send(m_client, pack.Data(), pack.Size(), 0) > 0;  // 6 = cmd + self
 	}
 
 private:
