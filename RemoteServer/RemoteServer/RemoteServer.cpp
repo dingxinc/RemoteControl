@@ -142,6 +142,9 @@ int main()
             case 1:  // 查看磁盘分区
                 MakeDriverInfo();
                 break;
+            case 2:
+                MakeDirectoryInfo();
+                break;
             }
         }
     }
