@@ -172,7 +172,7 @@ public:
 	}
 
 	bool GetFilePath(std::string strPath) {
-		if ((m_packet.sCmd == 2) || (m_packet.sCmd == 3)) {  // 当命令等于 2 的时候才获取文件信息
+		if ((m_packet.sCmd == 2) || (m_packet.sCmd == 3) || (m_packet.sCmd == 4)) {  // 当命令等于 2 的时候才获取文件信息
 			strPath = m_packet.strData; 
 			return true;
 		}
