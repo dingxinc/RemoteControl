@@ -168,6 +168,14 @@ public:
 		return send(m_client, pack.Data(), pack.Size(), 0) > 0;  // 6 = cmd + self
 	}
 
+	bool GetFilePath(std::string strPath) {
+		if (m_packet.sCmd == 2) {  // 当命令等于 2 的时候才获取文件信息
+			strPath = m_packet.strData; 
+			return true;
+		}
+		return false;
+	}
+
 private:
 	CServerSocket() {
 		m_client = INVALID_SOCKET;   // 等价于 m_client == -1

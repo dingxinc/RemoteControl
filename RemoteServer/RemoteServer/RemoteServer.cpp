@@ -6,6 +6,8 @@
 #include "RemoteServer.h"
 #include "ServerSocket.h"
 #include <direct.h>
+#include <io.h>
+#include <list>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -41,6 +43,61 @@ int MakeDriverInfo() { // 1->A 2->B 3->C ... 26->Z 对应的是 C盘 D盘，电�
     CPacket pack(1, (BYTE*)result.c_str(), result.size());
     Dump((BYTE*)pack.Data(), pack.Size());
     // CServerSocket::getInstance()->Send(pack);
+    return 0;
+}
+
+typedef struct file_info {  // 存储文件列表信息
+    file_info() {
+        IsInvalid = FALSE;
+        IsDirectory = -1;
+        HasNext = TRUE;
+        memset(szFileName, 0, sizeof(szFileName));
+    }
+    BOOL IsInvalid;   // 文件是否有效
+    BOOL IsDirectory; // 是否是目录
+    BOOL HasNext;     // 是否有下一个
+    char szFileName[256]; // 文件名
+} FILEINFO, *PFILEINFO;
+
+int MakeDirectoryInfo() {
+    std::string strPath;
+    // std::list<FILEINFO> lstFileInfo;  // 遍历的文件列表
+    FILEINFO finfo;
+    if (CServerSocket::getInstance()->GetFilePath(strPath) == false) {
+        OutputDebugString(_T("当前命令不能获取文件列表，命令解析错误！"));
+        return -1;
+    }
+
+    if (_chdir(strPath.c_str()) != 0) {
+        finfo.IsInvalid = TRUE;
+        finfo.IsDirectory = TRUE;
+        finfo.HasNext = FALSE;
+        memcpy(finfo.szFileName, strPath.c_str(), strPath.size());
+        // lstFileInfo.push_back(finfo);  // 添加到文件列表中
+        CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+        CServerSocket::getInstance()->Send(pack);
+        OutputDebugString(_T("没有权限访问目录！"));
+        return -2;
+    }
+
+    _finddata_t fdata;
+    int hfind = 0;
+    if ((hfind = _findfirst("*", &fdata)) == -1) {  // 文件是树状的结构，只能找到根节点后遍历
+        OutputDebugString(_T("没有找到任何文件！"));
+        return -3;
+    }
+
+    do {
+        FILEINFO finfo;
+        finfo.IsDirectory = (fdata.attrib & _A_SUBDIR) != 0; // 表示有这个属性，为 TRUE，是一个目录
+        memcpy(finfo.szFileName, fdata.name, strlen(fdata.name));
+        // lstFileInfo.push_back(finfo);
+        CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+        CServerSocket::getInstance()->Send(pack);
+    } while (!_findnext(hfind, &fdata));
+    finfo.HasNext = FALSE;
+    CPacket pack(2, (BYTE*)&finfo, sizeof(finfo));
+    CServerSocket::getInstance()->Send(pack);
     return 0;
 }
 
