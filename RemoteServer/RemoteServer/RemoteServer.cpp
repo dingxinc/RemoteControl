@@ -264,6 +264,14 @@ int SendScreen() {
     return 0;
 }
 
+int LockMachine() {
+    return 0;
+}
+
+int UnlockMachine() {
+    return 0;
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -319,6 +327,12 @@ int main()
                 break;
             case 6:  // 屏幕监控
                 SendScreen();
+                break;
+            case 7:  // 锁机
+                LockMachine();
+                break;
+            case 8:  // 解锁
+                UnlockMachine();
                 break;
             }
         }
