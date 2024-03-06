@@ -264,7 +264,41 @@ int SendScreen() {
     return 0;
 }
 
+#include "LockInfoDialog.h"
+CLockInfoDialog dlg;
+
 int LockMachine() {
+    dlg.Create(IDD_DIALOG_INFO, NULL);
+    dlg.ShowWindow(SW_SHOW);   // 非模态对话框
+    // 遮蔽后台窗口
+    CRect rect;
+    rect.left = 0;
+    rect.top = 0;
+    rect.right = GetSystemMetrics(SM_CXFULLSCREEN);
+    rect.bottom = GetSystemMetrics(SM_CYFULLSCREEN);
+    dlg.MoveWindow(rect);
+    // 窗口置顶
+    dlg.SetWindowPos(&dlg.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+    // 限制鼠标
+    ShowCursor(false);
+    ::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_HIDE);  // 隐藏任务栏
+    dlg.GetWindowRect(rect);
+    ClipCursor(rect);   // 限制鼠标活动范围
+    // 窗口都是基于消息循环的
+    MSG msg;
+    while (GetMessage(&msg, 0, 0, NULL)) { // 获取消息
+        TranslateMessage(&msg);            // 翻译消息
+        DispatchMessage(&msg);             // 派发消息
+        if (msg.message == WM_KEYDOWN) {
+            TRACE("msg:%08X wparam:%08x lparam:%08x\r\n", msg.message, msg.wParam, msg.lParam);
+            if (msg.wParam == 0x1B) {      // Esc 键
+                break;
+            }
+        }
+    }
+    dlg.DestroyWindow();
+    ShowCursor(true);
+    ::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_SHOW);  // 恢复任务栏
     return 0;
 }
 
@@ -308,7 +342,7 @@ int main()
             //    int ret = pserver->DealCommand();
             //}
             
-            int nCmd = 1;
+            int nCmd = 7;
             switch (nCmd) {
             case 1:  // 查看磁盘分区
                 MakeDriverInfo();
