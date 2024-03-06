@@ -7,7 +7,7 @@
 #include "ServerSocket.h"
 #include <direct.h>
 #include <io.h>
-#include <list>
+#include <atlimage.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -235,6 +235,35 @@ int MouseEvent() {
     return 0;
 }
 
+int SendScreen() {
+    CImage screen;  // GDI
+    HDC hScreen = ::GetDC(NULL);  // 获取设备上下文
+    int nBitPerPixel = GetDeviceCaps(hScreen, BITSPIXEL);  // 24 RGB888
+    int nWidth = GetDeviceCaps(hScreen, HORZRES);
+    int nHeight = GetDeviceCaps(hScreen, VERTRES);
+    screen.Create(nWidth, nHeight, nBitPerPixel);
+    BitBlt(screen.GetDC(), 0, 0, 1920, 1020, hScreen, 0, 0, SRCCOPY);
+    ReleaseDC(NULL, hScreen);
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);
+    if (hMem == NULL) return -1;
+    IStream* pStream = NULL;
+    HRESULT ret = CreateStreamOnHGlobal(hMem, TRUE, &pStream);
+    if (ret == S_OK) {
+        screen.Save(pStream, Gdiplus::ImageFormatPNG);
+        LARGE_INTEGER bg = { 0 };
+        pStream->Seek(bg, STREAM_SEEK_SET, NULL);
+        PBYTE pData = (PBYTE)GlobalLock(hMem);
+        SIZE_T nSize = GlobalSize(hMem);
+        CPacket pack(6, pData, nSize);
+        CServerSocket::getInstance()->Send(pack);
+        GlobalUnlock(hMem);
+    }
+    pStream->Release();
+    GlobalFree(hMem);
+    screen.ReleaseDC();
+    return 0;
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -279,14 +308,17 @@ int main()
             case 2:  // 查看指定目录下的文件
                 MakeDirectoryInfo();
                 break;
-            case 3:
+            case 3:  // 打开文件
                 RunFile();
                 break;
-            case 4:
+            case 4:  // 下载文件
                 DownLoadFile();
                 break;
-            case 5:
+            case 5:  // 鼠标移动
                 MouseEvent();
+                break;
+            case 6:  // 屏幕监控
+                SendScreen();
                 break;
             }
         }
