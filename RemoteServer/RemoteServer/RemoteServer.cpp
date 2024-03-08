@@ -266,8 +266,11 @@ int SendScreen() {
 
 #include "LockInfoDialog.h"
 CLockInfoDialog dlg;
+unsigned threadid = 0;
 
-int LockMachine() {
+// 线程函数
+unsigned _stdcall threadLockDlg(void* arg) {
+    TRACE("%s(%d):%d\r\n", __FUNCTION__, __LINE__, GetCurrentThreadId());
     dlg.Create(IDD_DIALOG_INFO, NULL);
     dlg.ShowWindow(SW_SHOW);   // 非模态对话框
     // 遮蔽后台窗口
@@ -281,7 +284,7 @@ int LockMachine() {
     dlg.SetWindowPos(&dlg.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
     // 限制鼠标
     ShowCursor(false);
-    ::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_HIDE);  // 隐藏任务栏
+    ///::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_HIDE);  // 隐藏任务栏
     dlg.GetWindowRect(rect);
     ClipCursor(rect);   // 限制鼠标活动范围
     // 窗口都是基于消息循环的
@@ -296,13 +299,28 @@ int LockMachine() {
             }
         }
     }
-    dlg.DestroyWindow();
     ShowCursor(true);
-    ::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_SHOW);  // 恢复任务栏
+    ////::ShowWindow(::FindWindow(_T("Shell_TrayWnd"), NULL), SW_SHOW);  // 恢复任务栏
+    dlg.DestroyWindow();
+    _endthreadex(0);   // 终止线程
+    return 0;
+}
+
+int LockMachine() {
+    if ((dlg.m_hWnd == NULL) || (dlg.m_hWnd == INVALID_HANDLE_VALUE)) { // dlg 没有被创建或者没有被初始化
+        //_beginthread(threadLockDlg, 0, NULL);   // 创建 dlg
+        _beginthreadex(NULL, 0, threadLockDlg, NULL, 0, &threadid);
+        TRACE("threadid=%d\r\n", threadid);
+    }
+    CPacket pack(7, NULL, 0);
+    CServerSocket::getInstance()->Send(pack);
     return 0;
 }
 
 int UnlockMachine() {
+    PostThreadMessage(threadid, WM_KEYDOWN, 0x41, 0);
+    CPacket pack(7, NULL, 0);
+    CServerSocket::getInstance()->Send(pack);
     return 0;
 }
 
@@ -368,6 +386,12 @@ int main()
             case 8:  // 解锁
                 UnlockMachine();
                 break;
+            }
+            Sleep(5000);
+            UnlockMachine();
+            TRACE("m_hWnd = %08x\r\n", dlg.m_hWnd);
+            while (dlg.m_hWnd != NULL) {
+                Sleep(10);
             }
         }
     }
