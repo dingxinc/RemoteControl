@@ -324,6 +324,47 @@ int UnlockMachine() {
     return 0;
 }
 
+int TestConnect() {
+    CPacket pack(2000, NULL, 0);
+    bool ret = CServerSocket::getInstance()->Send(pack);
+    TRACE("Send ret = %d\r\n", ret);
+    return 0;
+}
+
+int ExcauteCommand(WORD nCmd) {
+    int ret = 0;
+    switch (nCmd) {
+    case 1:  // 查看磁盘分区
+        ret = MakeDriverInfo();
+        break;
+    case 2:  // 查看指定目录下的文件
+        ret = MakeDirectoryInfo();
+        break;
+    case 3:  // 打开文件
+        ret = RunFile();
+        break;
+    case 4:  // 下载文件
+        ret = DownLoadFile();
+        break;
+    case 5:  // 鼠标移动
+        ret = MouseEvent();
+        break;
+    case 6:  // 屏幕监控
+        ret = SendScreen();
+        break;
+    case 7:  // 锁机
+        ret = LockMachine();
+        break;
+    case 8:  // 解锁
+        ret = UnlockMachine();
+        break;
+    case 2000:
+        ret = TestConnect();
+        break;
+    }
+    return ret;
+}
+
 int main()
 {
     int nRetCode = 0;
@@ -342,56 +383,32 @@ int main()
         else
         {
             // TODO: 在此处为应用程序的行为编写代码。
-            // CServerSocket* pserver = CServerSocket::getInstance();  // pserver 是全局唯一的
-            // int count = 0;
-            //if (pserver->InitSocket() == false) {
-            //    MessageBox(NULL, _T("网络初始化异常，请检查网络设置！"), _T("网络初始化失败"), MB_OK | MB_ICONERROR);
-            //    exit(0);
-            //}
-            //while (CServerSocket::getInstance() != nullptr) {
-            //    if (pserver->AcceptClient() == false) {
-            //        if (count > 3) {
-            //            MessageBox(NULL, _T("多次无法正常接入用户，退出程序！"), _T("接入用户失败"), MB_OK | MB_ICONERROR);
-            //            exit(0);
-            //        }
-            //        MessageBox(NULL, _T("无法正常接入用户！"), _T("接入用户失败"), MB_OK | MB_ICONERROR);
-            //        count++;
-            //    }
-            //    int ret = pserver->DealCommand();
-            //}
-            
-            int nCmd = 7;
-            switch (nCmd) {
-            case 1:  // 查看磁盘分区
-                MakeDriverInfo();
-                break;
-            case 2:  // 查看指定目录下的文件
-                MakeDirectoryInfo();
-                break;
-            case 3:  // 打开文件
-                RunFile();
-                break;
-            case 4:  // 下载文件
-                DownLoadFile();
-                break;
-            case 5:  // 鼠标移动
-                MouseEvent();
-                break;
-            case 6:  // 屏幕监控
-                SendScreen();
-                break;
-            case 7:  // 锁机
-                LockMachine();
-                break;
-            case 8:  // 解锁
-                UnlockMachine();
-                break;
+            CServerSocket* pserver = CServerSocket::getInstance();  // pserver 是全局唯一的
+            int count = 0;
+            if (pserver->InitSocket() == false) {
+                MessageBox(NULL, _T("网络初始化异常，请检查网络设置！"), _T("网络初始化失败"), MB_OK | MB_ICONERROR);
+                exit(0);
             }
-            Sleep(5000);
-            UnlockMachine();
-            TRACE("m_hWnd = %08x\r\n", dlg.m_hWnd);
-            while (dlg.m_hWnd != NULL) {
-                Sleep(10);
+            while (CServerSocket::getInstance() != nullptr) {
+                if (pserver->AcceptClient() == false) {
+                    if (count > 3) {
+                        MessageBox(NULL, _T("多次无法正常接入用户，退出程序！"), _T("接入用户失败"), MB_OK | MB_ICONERROR);
+                        exit(0);
+                    }
+                    MessageBox(NULL, _T("无法正常接入用户！"), _T("接入用户失败"), MB_OK | MB_ICONERROR);
+                    count++;
+                }
+                TRACE("AcceptClient return true.\r\n");
+                int ret = pserver->DealCommand();
+                TRACE("DealCommand ret: %d\r\n", ret);
+                if (ret > 0) {
+                    ret = ExcauteCommand(ret);
+                    if (ret != 0) {
+                        TRACE("执行命令失败：%d, ret = %d\r\n", pserver->GetPacket().sCmd, ret);
+                    }
+                    pserver->CloseClient();   // 短连接
+                    TRACE("Command has done.\r\n");
+                }
             }
         }
     }

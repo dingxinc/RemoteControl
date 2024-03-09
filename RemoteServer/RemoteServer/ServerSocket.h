@@ -143,9 +143,11 @@ public:
 	}
 
 	bool AcceptClient() {
+		TRACE("Enter AcceptClient.\r\n");
 		sockaddr_in client_adr;
 		int client_sz = sizeof(client_adr);
 		m_client = accept(m_socket, (sockaddr*)&client_adr, &client_sz);
+		TRACE("m_client = %d\r\n", m_client);
 		if (m_client == -1) return false;
 		return true;
 	}
@@ -155,11 +157,20 @@ public:
 	int DealCommand() {
 		if (m_client == -1) return -1;
 		char* buffer = new char[BUFFER_SIZE];
+		if (buffer == NULL) {
+			TRACE("内存不足");
+			return -2;
+		}
 		memset(buffer, 0, BUFFER_SIZE);
 		size_t index = 0;
 		while (true) {
 			size_t len = recv(m_client, buffer + index, BUFFER_SIZE - index, 0);  // 接收数据包
-			if (len <= 0) return -1;
+			TRACE("server recv len: %d\r\n", len);
+			if (len <= 0) {
+				delete[] buffer;
+				return -1;
+			}
+			TRACE("recv len: %d\r\n", len);
 			// TODO: 处理命令
 			index += len;
 			len = index;
@@ -167,10 +178,12 @@ public:
 			if (len > 0) {
 				memmove(buffer, buffer + len, BUFFER_SIZE - len);  // 将接收到的包数据解析完后，将后面的数据前移，保证 buffer 可用
 				index -= len;
+				delete[] buffer;
 				return m_packet.sCmd;
 			}
 		}
-		return -1;
+		delete[] buffer;
+		return -3;
 	}
 
 	bool Send(const char* pData, int nSize) {
@@ -197,6 +210,15 @@ public:
 			return true;
 		}
 		return false;
+	}
+
+	CPacket& GetPacket() {
+		return m_packet;
+	}
+
+	void CloseClient() {
+		closesocket(m_client);
+		m_client = INVALID_SOCKET;
 	}
 
 private:

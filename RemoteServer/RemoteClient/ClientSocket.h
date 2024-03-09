@@ -2,6 +2,7 @@
 #include "pch.h"
 #include "framework.h"
 #include <string>
+#include <vector>
 
 #pragma pack(push)   // 入栈，保存当前状态
 #pragma pack(1)      // 设置字节对齐
@@ -119,19 +120,7 @@ typedef struct MouseEvent {
 	POINT ptXY;     // 坐标
 } MOUSEEV, * PMOUSEEV;
 
-std::string GetErrorInfo(int wsaErrCode) {
-	std::string ret;
-	LPVOID lpMsgBuf = NULL;
-	FormatMessage(
-		FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-		NULL,
-		wsaErrCode,
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR)&lpMsgBuf, 0, NULL);
-	ret = (char*)lpMsgBuf;
-	LocalFree(lpMsgBuf);
-	return ret;
-}
+std::string GetErrorInfo(int wsaErrCode);
 
 class CClientSocket
 {
@@ -144,6 +133,9 @@ public:
 	}
 
 	bool InitSocket(const std::string strIpAddress) {
+		if (m_socket != INVALID_SOCKET) CloseSocket();
+		m_socket = socket(PF_INET, SOCK_STREAM, 0);
+		TRACE("client socket：%d\r\n", m_socket);
 		if (m_socket == -1) return false;
 		sockaddr_in serv_addr;
 		memset(&serv_addr, 0, sizeof(serv_addr));
@@ -168,7 +160,7 @@ public:
 
 	int DealCommand() {
 		if (m_socket == -1) return -1;
-		char* buffer = new char[BUFFER_SIZE];
+		char* buffer = m_buffer.data();
 		memset(buffer, 0, BUFFER_SIZE);
 		size_t index = 0;
 		while (true) {
@@ -193,6 +185,7 @@ public:
 	}
 
 	bool Send(CPacket& pack) {
+		TRACE("m_socket = %d\r\n", m_socket);
 		if (m_socket == -1) return false;
 		return send(m_socket, pack.Data(), pack.Size(), 0) > 0;  // 6 = cmd + self
 	}
@@ -213,6 +206,15 @@ public:
 		return false;
 	}
 
+	CPacket& GetPacket() {
+		return m_packet;
+	}
+
+	void CloseSocket() {
+		closesocket(m_socket);
+		m_socket = INVALID_SOCKET;
+	}
+
 private:
 	CClientSocket() {
 		// m_client = INVALID_SOCKET;   // 等价于 m_client == -1
@@ -220,7 +222,7 @@ private:
 			MessageBox(NULL, _T("无法初始化套接字环境，请检查网络设置！"), _T("初始化错误！"), MB_OK | MB_ICONERROR);
 			exit(0);
 		}
-		m_socket = socket(PF_INET, SOCK_STREAM, 0);
+		m_buffer.resize(BUFFER_SIZE);
 	}
 
 	~CClientSocket() {
@@ -259,5 +261,6 @@ private:
 	static CClientSocket* m_instance;
 	static CHelper m_helper;
 	SOCKET m_socket;         // 服务器套接字
+	std::vector<char> m_buffer;  // 缓冲区
 	CPacket m_packet;
 };
